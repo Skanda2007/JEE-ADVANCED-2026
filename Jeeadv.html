@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#050208">
+    <title>JEE Advanced 2026</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+            background-color: #050208;
+            color: #e0d5f0;
+            font-size: 14px;
+        }
+        .transition-all { transition: all 0.2s ease-in-out; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .animate-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        :fullscreen { background-color: #050208; padding: 1rem; overflow-y: auto; }
+        :-webkit-full-screen { background-color: #050208; padding: 1rem; overflow-y: auto; }
+        
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="text-[#e0d5f0]">
+    <div id="root"></div>
+
+    <script>
+        window.onload = () => {
+            const { useState, useEffect, useRef, useMemo } = React;
+
+            const App = () => {
+                const [syllabus] = useState({
+                    Physics: {
+                        "Mechanics": ["Units & Dimensions", "Kinematics", "Laws of Motion", "Work, Energy & Power", "Centre of Mass", "Collisions", "Rotational Mechanics", "Gravitation", "Mechanical Properties of Solids", "Fluid Mechanics", "Viscosity", "Surface Tension"],
+                        "Thermal Physics": ["Thermal Expansion", "Calorimetry", "Kinetic Theory of Gases", "Thermodynamics (P)", "Heat Transfer"],
+                        "Oscillations & Waves": ["SHM", "String Waves", "Sound"],
+                        "Electricity & Magnetism": ["Electrostatics", "Capacitors", "Current Electricity", "Magnetism", "Electromagnetic Induction", "Alternating Current", "Electromagnetic Waves"],
+                        "Optics": ["Ray Optics", "Wave Optics"],
+                        "Modern Physics": ["Atomic Physics", "Nuclear Physics", "Semiconductor Electronics"]
+                    },
+                    Chemistry: {
+                        "Physical Chemistry": ["Mole Concept", "Atomic Structure", "Chemical Bonding", "States of Matter", "Thermodynamics (C)", "Chemical Equilibrium", "Ionic Equilibrium", "Redox Reactions", "Electrochemistry", "Chemical Kinetics", "Solutions", "Solid State", "Surface Chemistry"],
+                        "Inorganic Chemistry": ["Periodicity", "Hydrogen", "s-Block Elements", "Group 13 Elements", "Group 14 Elements", "Group 15 Elements", "Group 16 Elements", "Group 17 Elements", "Group 18 Elements", "d-Block Elements", "f-Block Elements", "Coordination Compounds", "Metallurgy", "Qualitative Analysis"],
+                        "Organic Chemistry": ["General Organic Chemistry", "Isomerism", "Alkanes", "Alkenes", "Alkynes", "Aromatic Hydrocarbons", "Haloalkanes & Haloarenes", "Alcohols", "Phenols", "Ethers", "Aldehydes", "Ketones", "Carboxylic Acids", "Carboxylic Acid Derivatives", "Amines", "Biomolecules", "Polymers", "Practical Organic Chemistry"]
+                    },
+                    Mathematics: {
+                        "Algebra": ["Sets", "Relations & Functions", "Complex Numbers", "Quadratic Equations", "Sequences & Series", "Binomial Theorem", "Permutations & Combinations", "Probability", "Matrices", "Determinants"],
+                        "Trigonometry": ["Trigonometric Ratios & Identities", "Trigonometric Equations", "Inverse Trigonometric Functions"],
+                        "Coordinate Geometry": ["Straight Lines", "Circles", "Parabola", "Ellipse", "Hyperbola"],
+                        "Calculus": ["Limits", "Continuity", "Differentiability", "Differentiation", "Applications of Derivatives", "Integration", "Differential Equations", "Area Under Curve"],
+                        "Vector Geometry": ["Vectors", "Three Dimensional Geometry"]
+                    }
+                });
+
+                const [progress, setProgress] = useState(() => JSON.parse(localStorage.getItem('jee-2026-progress') || '{}'));
+                const [dailyTasks, setDailyTasks] = useState(() => JSON.parse(localStorage.getItem('jee-2026-daily-tasks') || '{}'));
+                const [studyTime, setStudyTime] = useState(() => JSON.parse(localStorage.getItem('jee-2026-time') || '{}'));
+                
+                const [activeTab, setActiveTab] = useState('Physics');
+                const [view, setView] = useState('home'); 
+                const [expandedSections, setExpandedSections] = useState({});
+                const [isFullscreen, setIsFullscreen] = useState(false);
+                const [selectedDate, setSelectedDate] = useState(null); 
+                const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+                const [manualHours, setManualHours] = useState('');
+                
+                const [modalSearch, setModalSearch] = useState('');
+                const [modalSubject, setModalSubject] = useState('Physics');
+
+                const [isTimerRunning, setIsTimerRunning] = useState(false);
+                const [elapsedSeconds, setElapsedSeconds] = useState(0);
+                const timerRef = useRef(null);
+
+                useEffect(() => localStorage.setItem('jee-2026-progress', JSON.stringify(progress)), [progress]);
+                useEffect(() => localStorage.setItem('jee-2026-daily-tasks', JSON.stringify(dailyTasks)), [dailyTasks]);
+                useEffect(() => localStorage.setItem('jee-2026-time', JSON.stringify(studyTime)), [studyTime]);
+
+                const todayKey = new Date().toISOString().split('T')[0];
+
+                useEffect(() => {
+                    if (isTimerRunning) {
+                        timerRef.current = setInterval(() => setElapsedSeconds(p => p + 1), 1000);
+                    } else {
+                        clearInterval(timerRef.current);
+                    }
+                    return () => clearInterval(timerRef.current);
+                }, [isTimerRunning]);
+
+                const toggleFullscreen = () => {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen();
+                        setIsFullscreen(true);
+                    } else {
+                        document.exitFullscreen();
+                        setIsFullscreen(false);
+                    }
+                };
+
+                const saveTimer = () => {
+                    const hours = elapsedSeconds / 3600;
+                    setStudyTime(prev => ({ ...prev, [todayKey]: (prev[todayKey] || 0) + hours }));
+                    setElapsedSeconds(0);
+                    setIsTimerRunning(false);
+                };
+
+                const logManualSession = () => {
+                    const h = parseFloat(manualHours);
+                    if (!isNaN(h) && h > 0) {
+                        setStudyTime(prev => ({ ...prev, [todayKey]: (prev[todayKey] || 0) + h }));
+                        setManualHours('');
+                        setIsManualEntryOpen(false);
+                    }
+                };
+
+                const calculateProgress = (subject) => {
+                    let total = 0, completed = 0;
+                    Object.values(syllabus[subject]).forEach(unit => {
+                        unit.forEach(chapter => {
+                            ['L', 'S', 'Q', 'T'].forEach(type => {
+                                total++;
+                                if (progress[`${chapter}-${type}`]) completed++;
+                            });
+                        });
+                    });
+                    return total === 0 ? 0 : Math.round((completed / total) * 100);
+                };
+
+                const overallProgress = Math.round((calculateProgress('Physics') + calculateProgress('Chemistry') + calculateProgress('Mathematics')) / 3);
+
+                const getTasksForDate = (date) => dailyTasks[date] || [];
+
+                const toggleTask = (date, chapter, subject) => {
+                    setDailyTasks(prev => {
+                        const existing = prev[date] || [];
+                        const exists = existing.find(t => t.name === chapter);
+                        if (exists) {
+                            return { ...prev, [date]: existing.filter(t => t.name !== chapter) };
+                        } else {
+                            return { ...prev, [date]: [...existing, { name: chapter, subject }] };
+                        }
+                    });
+                };
+
+                const removeTask = (date, chapterName) => {
+                    setDailyTasks(prev => {
+                        const existing = prev[date] || [];
+                        return { ...prev, [date]: existing.filter(t => t.name !== chapterName) };
+                    });
+                };
+
+                const getIntensityColor = (hours) => {
+                    if (hours === 0) return 'bg-white/5 text-white/20';
+                    if (hours < 2) return 'bg-purple-900/40 text-purple-300';
+                    if (hours < 5) return 'bg-purple-700/60 text-white';
+                    return 'bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]';
+                };
+
+                const renderManualEntryModal = () => {
+                    if (!isManualEntryOpen) return null;
+                    return React.createElement('div', { className: 'fixed inset-0 z-[60] modal-overlay flex items-center justify-center p-4' },
+                        React.createElement('div', { className: 'bg-[#0f0718] w-full max-w-sm rounded-[2rem] border border-purple-500/20 p-6 shadow-2xl' },
+                            React.createElement('h3', { className: 'text-lg font-black text-white mb-2 uppercase tracking-tighter' }, 'Manual Log'),
+                            React.createElement('p', { className: 'text-[10px] text-white/40 mb-6 font-bold uppercase tracking-widest' }, 'Add offline study hours to today'),
+                            React.createElement('input', {
+                                type: 'number',
+                                placeholder: 'Hours (e.g. 1.5)',
+                                value: manualHours,
+                                onChange: (e) => setManualHours(e.target.value),
+                                className: 'w-full bg-white/5 border border-purple-500/20 rounded-xl px-4 py-4 text-white text-lg font-bold mb-4 focus:outline-none focus:border-purple-500/50'
+                            }),
+                            React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+                                React.createElement('button', {
+                                    onClick: () => setIsManualEntryOpen(false),
+                                    className: 'py-4 rounded-xl bg-white/5 text-white font-black uppercase text-[10px] tracking-widest'
+                                }, 'Cancel'),
+                                React.createElement('button', {
+                                    onClick: logManualSession,
+                                    className: 'py-4 rounded-xl bg-purple-600 text-white font-black uppercase text-[10px] tracking-widest'
+                                }, 'Add Session')
+                            )
+                        )
+                    );
+                };
+
+                const renderTaskModal = () => {
+                    if (!selectedDate) return null;
+                    const tasks = getTasksForDate(selectedDate);
+                    
+                    const filteredChapters = [];
+                    const units = syllabus[modalSubject];
+                    Object.entries(units).forEach(([unitName, chapters]) => {
+                        chapters.forEach(chap => {
+                            if (chap.toLowerCase().includes(modalSearch.toLowerCase())) {
+                                filteredChapters.push({ name: chap, unit: unitName });
+                            }
+                        });
+                    });
+
+                    return React.createElement('div', { className: 'fixed inset-0 z-50 modal-overlay flex items-end sm:items-center justify-center p-0 sm:p-4' },
+                        React.createElement('div', { className: 'bg-[#0f0718] w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] border-t sm:border border-purple-500/20 p-6 max-h-[90vh] overflow-hidden flex flex-col' },
+                            React.createElement('div', { className: 'flex justify-between items-center mb-4' },
+                                React.createElement('div', null,
+                                    React.createElement('p', { className: 'text-[10px] font-black text-purple-500 uppercase tracking-widest' }, 'Planning for'),
+                                    React.createElement('h3', { className: 'text-xl font-black text-white' }, selectedDate === todayKey ? 'Today' : selectedDate)
+                                ),
+                                React.createElement('button', { onClick: () => { setSelectedDate(null); setModalSearch(''); }, className: 'w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white' }, '✕')
+                            ),
+                            React.createElement('div', { className: 'mb-4' },
+                                React.createElement('input', {
+                                    type: 'text',
+                                    placeholder: 'Search chapters...',
+                                    value: modalSearch,
+                                    onChange: (e) => setModalSearch(e.target.value),
+                                    className: 'w-full bg-white/5 border border-purple-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all'
+                                })
+                            ),
+                            React.createElement('div', { className: 'flex gap-1 p-1 bg-white/5 rounded-xl mb-4' },
+                                ['Physics', 'Chemistry', 'Mathematics'].map(sub => 
+                                    React.createElement('button', {
+                                        key: sub,
+                                        onClick: () => setModalSubject(sub),
+                                        className: `flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${modalSubject === sub ? 'bg-purple-600 text-white' : 'text-white/30 hover:text-white/60'}`
+                                    }, sub)
+                                )
+                            ),
+                            React.createElement('div', { className: 'flex-1 overflow-y-auto no-scrollbar space-y-2 pb-4' },
+                                filteredChapters.length === 0 ? 
+                                    React.createElement('p', { className: 'text-center text-white/20 py-10 text-xs italic' }, 'No chapters found') :
+                                    filteredChapters.map(item => {
+                                        const isSelected = tasks.some(t => t.name === item.name);
+                                        return React.createElement('button', {
+                                            key: item.name,
+                                            onClick: () => toggleTask(selectedDate, item.name, modalSubject),
+                                            className: `w-full p-4 rounded-2xl border text-left transition-all flex justify-between items-center ${isSelected ? 'bg-purple-600 border-purple-500 text-white' : 'bg-white/5 border-transparent text-white/40'}`
+                                        }, 
+                                            React.createElement('div', null,
+                                                React.createElement('p', { className: 'text-[8px] font-black opacity-40 uppercase mb-0.5' }, item.unit),
+                                                React.createElement('span', { className: 'font-bold text-[13px]' }, item.name)
+                                            ),
+                                            isSelected && React.createElement('span', { className: 'text-lg' }, '✓')
+                                        );
+                                    })
+                            ),
+                            React.createElement('button', {
+                                onClick: () => { setSelectedDate(null); setModalSearch(''); },
+                                className: 'w-full py-4 rounded-2xl bg-white text-black font-black uppercase text-[11px] tracking-widest mt-2'
+                            }, 'Save Plan')
+                        )
+                    );
+                };
+
+                const renderTimer = () => {
+                    const h = Math.floor(elapsedSeconds / 3600);
+                    const m = Math.floor((elapsedSeconds % 3600) / 60);
+                    const s = elapsedSeconds % 60;
+                    const totalToday = (studyTime[todayKey] || 0) + (elapsedSeconds / 3600);
+                    return React.createElement('div', { className: 'bg-[#0f0718] p-5 rounded-[1.5rem] border border-purple-500/20 shadow-2xl mb-4' },
+                        React.createElement('div', { className: 'flex flex-row items-center justify-between gap-3' },
+                            React.createElement('div', { className: 'flex items-center gap-4' },
+                                React.createElement('div', { className: 'text-3xl font-black tracking-tighter text-white tabular-nums' }, 
+                                    `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+                                ),
+                                React.createElement('div', { className: 'h-8 w-[1px] bg-purple-500/20' }),
+                                React.createElement('div', null,
+                                    React.createElement('p', { className: 'text-[8px] font-black text-purple-500/50 uppercase tracking-widest' }, 'Session'),
+                                    React.createElement('p', { className: 'text-[11px] font-bold text-white/60' }, isTimerRunning ? 'Active' : 'Idle')
+                                )
+                            ),
+                            React.createElement('div', { className: 'flex gap-2' },
+                                React.createElement('button', {
+                                    onClick: () => setIsTimerRunning(!isTimerRunning),
+                                    className: `px-5 py-2.5 rounded-xl font-black uppercase text-[9px] tracking-widest transition-all ${isTimerRunning ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-purple-600 text-white'}`
+                                }, isTimerRunning ? 'Pause' : 'Start'),
+                                elapsedSeconds > 0 && React.createElement('button', {
+                                    onClick: saveTimer,
+                                    className: 'px-4 py-2.5 rounded-xl bg-white text-black font-black uppercase text-[9px] tracking-widest'
+                                }, 'Save')
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-4 pt-3 border-t border-purple-500/10 flex justify-between items-center' },
+                            React.createElement('span', { className: 'text-[8px] font-black text-purple-500/40 uppercase tracking-widest' }, 'Daily Total'),
+                            React.createElement('span', { className: 'text-[11px] font-black text-purple-400' }, `${totalToday.toFixed(2)} HRS`)
+                        )
+                    );
+                };
+
+                const renderCalendar = () => {
+                    const months = [{ name: 'March', year: 2026, m: 2 }, { name: 'April', year: 2026, m: 3 }, { name: 'May', year: 2026, m: 4 }];
+                    return React.createElement('div', { className: 'animate-in space-y-6 max-w-xl mx-auto py-6' },
+                        React.createElement('div', { className: 'flex items-center justify-between mb-4' },
+                            React.createElement('h2', { className: 'text-xl font-black text-white uppercase tracking-tighter' }, 'Study Calendar'),
+                            React.createElement('button', { onClick: () => setView('home'), className: 'px-4 py-2 rounded-full border border-purple-500/30 text-purple-400 font-bold text-[10px] uppercase tracking-widest hover:bg-purple-500/10' }, 'Back')
+                        ),
+                        months.map(mon => {
+                            const firstDay = new Date(mon.year, mon.m, 1).getDay();
+                            const daysInMonth = new Date(mon.year, mon.m + 1, 0).getDate();
+                            const blanks = Array(firstDay).fill(null);
+                            const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+                            return React.createElement('div', { key: mon.name, className: 'bg-[#0f0718] p-6 rounded-[2rem] border border-purple-500/10' },
+                                React.createElement('h3', { className: 'text-[10px] font-black uppercase tracking-widest text-white mb-4 opacity-70' }, `${mon.name} ${mon.year}`),
+                                React.createElement('div', { className: 'calendar-grid mb-3 text-[9px] font-bold text-purple-500/30 text-center' }, ['S','M','T','W','T','F','S'].map(d => React.createElement('div', { key: d }, d))),
+                                React.createElement('div', { className: 'calendar-grid' },
+                                    blanks.map((_, i) => React.createElement('div', { key: `b-${i}`, className: 'aspect-square' })),
+                                    days.map(d => {
+                                        const dateStr = `${mon.year}-${(mon.m + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+                                        const hours = studyTime[dateStr] || 0;
+                                        const tasks = getTasksForDate(dateStr);
+                                        const isToday = dateStr === todayKey;
+                                        return React.createElement('button', { 
+                                            key: d, 
+                                            onClick: () => setSelectedDate(dateStr),
+                                            className: `aspect-square rounded-lg ${getIntensityColor(hours)} flex flex-col items-center justify-center transition-all relative ${isToday ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-[#050208]' : ''}` 
+                                        }, 
+                                            React.createElement('span', { className: 'text-[10px] font-bold' }, d),
+                                            tasks.length > 0 && React.createElement('div', { className: 'w-1.5 h-1.5 bg-purple-400 rounded-full mt-0.5 shadow-[0_0_5px_rgba(168,85,247,0.8)]' })
+                                        );
+                                    })
+                                )
+                            );
+                        })
+                    );
+                };
+
+                const renderTracker = () => {
+                    return React.createElement('div', { className: 'animate-in max-w-3xl mx-auto py-4 px-2' },
+                        React.createElement('div', { className: 'flex items-center justify-between mb-6' },
+                            React.createElement('h2', { className: 'text-xl font-black text-white uppercase tracking-tighter' }, 'Syllabus Tracker'),
+                            React.createElement('button', { onClick: () => setView('home'), className: 'px-4 py-2 rounded-full border border-purple-500/30 text-purple-400 font-bold text-[10px] uppercase tracking-widest' }, 'Back')
+                        ),
+                        React.createElement('div', { className: 'flex gap-1 p-1 bg-[#12081d] rounded-full mb-6 border border-purple-500/10 overflow-x-auto no-scrollbar' },
+                            ['Physics', 'Chemistry', 'Mathematics'].map(tab => 
+                                React.createElement('button', {
+                                    key: tab,
+                                    onClick: () => setActiveTab(tab),
+                                    className: `flex-1 min-w-[80px] py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-purple-600 text-white' : 'text-purple-500/30'}`
+                                }, tab)
+                            )
+                        ),
+                        React.createElement('div', { className: 'mb-6' },
+                            React.createElement('div', { className: 'flex justify-between items-end mb-2' },
+                                React.createElement('span', { className: 'text-[11px] font-black uppercase tracking-tighter text-white' }, `${activeTab} Completion`),
+                                React.createElement('span', { className: 'text-xl font-black text-purple-500' }, `${calculateProgress(activeTab)}%`)
+                            ),
+                            React.createElement('div', { className: 'h-2 w-full bg-white/5 rounded-full overflow-hidden' },
+                                React.createElement('div', { style: { width: `${calculateProgress(activeTab)}%` }, className: 'h-full bg-purple-500 transition-all duration-700' })
+                            )
+                        ),
+                        React.createElement('div', { className: 'space-y-3' },
+                            Object.entries(syllabus[activeTab]).map(([unit, chapters]) => {
+                                const unitKey = `${activeTab}-${unit}`;
+                                const isExpanded = expandedSections[unitKey];
+                                return React.createElement('div', { key: unitKey, className: 'bg-[#0f0718] rounded-[1.5rem] border border-purple-500/10 overflow-hidden' },
+                                    React.createElement('button', {
+                                        onClick: () => setExpandedSections(p => ({...p, [unitKey]: !isExpanded})),
+                                        className: 'w-full flex justify-between p-5 items-center'
+                                    },
+                                        React.createElement('h3', { className: 'text-[11px] font-black text-purple-300 uppercase tracking-widest text-left' }, unit),
+                                        React.createElement('span', { className: 'text-purple-500/40' }, isExpanded ? '−' : '+')
+                                    ),
+                                    isExpanded && React.createElement('div', { className: 'pb-4 px-1 space-y-1' },
+                                        chapters.map((chapter) => 
+                                            React.createElement('div', { key: chapter, className: 'chapter-row p-3 px-4 border-t border-purple-500/5' },
+                                                React.createElement('span', { className: 'text-white font-bold text-[14px] tracking-tight truncate' }, chapter),
+                                                React.createElement('div', { className: 'flex gap-1.5' },
+                                                    ['L', 'S', 'Q', 'T'].map(type => 
+                                                        React.createElement('button', {
+                                                            key: type,
+                                                            onClick: () => setProgress(p => ({...p, [`${chapter}-${type}`]: !p[`${chapter}-${type}`]})),
+                                                            className: `w-9 h-9 rounded-xl border font-black text-[11px] transition-all flex items-center justify-center ${progress[`${chapter}-${type}`] ? 'bg-purple-600 border-purple-500 text-white' : 'border-purple-500/10 text-purple-500/20'}`
+                                                        }, type)
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                                );
+                            })
+                        )
+                    );
+                };
+
+                const todayTasks = getTasksForDate(todayKey);
+
+                if (view === 'calendar') return renderCalendar();
+                if (view === 'tracker') return renderTracker();
+
+                return React.createElement('div', { className: 'min-h-screen p-4 md:p-8 pb-20' },
+                    React.createElement('div', { className: 'max-w-xl mx-auto' },
+                        React.createElement('div', { className: 'flex items-center justify-between gap-4 mb-8' },
+                            React.createElement('div', null,
+                                React.createElement('h1', { className: 'text-3xl font-black tracking-tighter text-white uppercase leading-none' },
+                                    'JEE ADVANCED ', React.createElement('span', { className: 'text-purple-500' }, '2026')
+                                ),
+                                React.createElement('p', { className: 'text-[9px] font-black text-purple-500/50 uppercase tracking-[0.3em] mt-2' }, 'Dashboard')
+                            ),
+                            React.createElement('div', { className: 'flex flex-col items-center gap-2' },
+                                React.createElement('div', { className: 'w-14 h-14 flex items-center justify-center font-black text-sm text-white border-4 border-purple-500/30 rounded-2xl bg-[#12081d]' }, `${overallProgress}%`),
+                                React.createElement('button', { 
+                                    onClick: toggleFullscreen,
+                                    className: 'text-[8px] font-black text-purple-400/60 uppercase tracking-widest'
+                                }, isFullscreen ? 'Exit' : 'Full')
+                            )
+                        ),
+                        React.createElement('div', { className: 'grid grid-cols-3 gap-2 sm:gap-4 mb-4' },
+                            React.createElement('button', {
+                                onClick: () => setView('calendar'),
+                                className: 'bg-[#0f0718] p-4 sm:p-5 rounded-[1.5rem] border border-purple-500/20 text-left'
+                            },
+                                React.createElement('p', { className: 'text-[8px] font-black text-purple-500/50 uppercase tracking-widest' }, 'History'),
+                                React.createElement('p', { className: 'text-[11px] font-bold text-white' }, 'Calendar')
+                            ),
+                            React.createElement('button', {
+                                onClick: () => setSelectedDate(todayKey),
+                                className: 'bg-[#0f0718] p-4 sm:p-5 rounded-[1.5rem] border border-purple-500/20 text-left'
+                            },
+                                React.createElement('p', { className: 'text-[8px] font-black text-purple-500/50 uppercase tracking-widest' }, 'Plan'),
+                                React.createElement('p', { className: 'text-[11px] font-bold text-white' }, 'Set Tasks')
+                            ),
+                            React.createElement('button', {
+                                onClick: () => setIsManualEntryOpen(true),
+                                className: 'bg-[#0f0718] p-4 sm:p-5 rounded-[1.5rem] border border-purple-500/20 text-left'
+                            },
+                                React.createElement('p', { className: 'text-[8px] font-black text-purple-500/50 uppercase tracking-widest' }, 'Add Time'),
+                                React.createElement('p', { className: 'text-[11px] font-bold text-white' }, 'Manual Log')
+                            )
+                        ),
+                        renderTimer(),
+                        React.createElement('button', {
+                            onClick: () => setView('tracker'),
+                            className: 'w-full py-4 rounded-2xl bg-purple-600 text-white font-black uppercase text-[10px] tracking-widest shadow-xl mb-10'
+                        }, 'Open Full Syllabus Tracker'),
+                        React.createElement('div', { className: 'animate-in' },
+                            React.createElement('div', { className: 'flex items-center justify-between mb-4' },
+                                React.createElement('div', { className: 'flex items-center gap-2' },
+                                    React.createElement('span', { className: 'text-purple-400 text-lg' }, '📅'),
+                                    React.createElement('h2', { className: 'text-[10px] font-black uppercase tracking-[0.2em] text-white/40' }, "Today's Focus")
+                                ),
+                                React.createElement('button', { onClick: () => setSelectedDate(todayKey), className: 'text-[9px] font-black text-purple-500 uppercase' }, 'Edit')
+                            ),
+                            todayTasks.length === 0 ? 
+                                React.createElement('div', { className: 'p-8 text-center border border-dashed border-purple-500/10 rounded-[2rem]' },
+                                    React.createElement('p', { className: 'text-[11px] font-bold text-white/20 uppercase tracking-widest' }, 'No tasks for today')
+                                ) :
+                                React.createElement('div', { className: 'space-y-3' },
+                                    todayTasks.map(chap => 
+                                        React.createElement('div', { key: chap.name, className: 'bg-[#12081d] p-5 rounded-3xl border border-purple-500/10 flex items-center justify-between relative' },
+                                            React.createElement('div', { className: 'flex-1 pr-12' },
+                                                React.createElement('p', { className: 'text-[8px] font-black text-purple-500/40 uppercase tracking-widest' }, chap.subject),
+                                                React.createElement('p', { className: 'text-[15px] font-bold text-white leading-tight' }, chap.name)
+                                            ),
+                                            React.createElement('div', { className: 'flex items-center gap-4' },
+                                                React.createElement('div', { className: 'flex gap-1' },
+                                                    ['L', 'S', 'Q', 'T'].map(type => 
+                                                        React.createElement('button', {
+                                                            key: type,
+                                                            onClick: () => setProgress(p => ({...p, [`${chap.name}-${type}`]: !p[`${chap.name}-${type}`]})),
+                                                            className: `w-8 h-8 rounded-lg text-[9px] font-black border transition-all ${progress[`${chap.name}-${type}`] ? 'bg-purple-600 border-purple-500 text-white' : 'border-purple-500/10 text-purple-500/20'}`
+                                                        }, type)
+                                                    )
+                                                ),
+                                                React.createElement('button', {
+                                                    onClick: () => removeTask(todayKey, chap.name),
+                                                    className: 'w-10 h-10 rounded-full bg-purple-500/10 text-purple-500 flex items-center justify-center text-[12px] border border-purple-500/20 active:bg-purple-500/30'
+                                                }, '✕')
+                                            )
+                                        )
+                                    )
+                                )
+                        )
+                    ),
+                    renderTaskModal(),
+                    renderManualEntryModal()
+                );
+            };
+
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(React.createElement(App));
+        };
+    </script>
+</body>
+</html>
